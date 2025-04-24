@@ -1,0 +1,53 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Reservation {
+  id              String   @id @default(uuid())
+  startDate       DateTime
+  endDate         DateTime
+  lastName        String   // Nom
+  firstName       String   // Prénom
+  address         String   // Adresse
+  locality        String   // Localité
+  city            String   // Ville
+  email           String   // Adresse mail
+  phone           String   // Numéro de téléphone
+  numberOfPeople  String   // Nombre de personne
+  status          String   @default("pending") // pending, approved, rejected
+  message         String?  // Message (Optionnel)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Ensure no overlapping reservations
+  @@index([startDate, endDate])
+}
+
+model BlockedDate {
+  id        String   @id @default(uuid())
+  startDate DateTime
+  endDate   DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Ensure no overlapping blocked dates
+  @@index([startDate, endDate])
+}
