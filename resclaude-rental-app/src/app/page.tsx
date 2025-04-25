@@ -4,6 +4,16 @@ import { useState, useEffect } from "react";
 import { Calendar } from "@/components/Calendar";
 import { ReservationForm, ReservationFormData } from "@/components/ReservationForm";
 
+interface ApartmentInfo {
+  id: string;
+  title: string;
+  description: string;
+  rules: string;
+  amenities: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface Reservation {
   id: string;
   startDate: string | Date;
@@ -24,6 +34,7 @@ export default function Home() {
     reservations: [] as Reservation[],
     blockedDates: [] as BlockedDate[],
   });
+  const [apartmentInfo, setApartmentInfo] = useState<ApartmentInfo | null>(null);
   const [selectedStartDate, setSelectedStartDate] = useState<Date | null>(null);
   const [selectedEndDate, setSelectedEndDate] = useState<Date | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -58,9 +69,26 @@ export default function Home() {
     }
   };
 
+  const fetchApartmentInfo = async () => {
+    try {
+      const response = await fetch("/api/apartment-info");
+      if (!response.ok) {
+        throw new Error("Failed to fetch apartment info");
+      }
+
+      const data = await response.json();
+      setApartmentInfo(data);
+    } catch (error) {
+      console.error("Error fetching apartment info:", error);
+    }
+  };
+
   useEffect(() => {
     // Fetch calendar data for the current view month
     fetchCalendarData(currentViewMonth);
+    
+    // Fetch apartment info
+    fetchApartmentInfo();
   }, [currentViewMonth]);
 
   const handleMonthChange = (date: Date) => {
@@ -167,32 +195,56 @@ export default function Home() {
       </div>
 
       <div className="mt-12 bg-white p-6 rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold mb-4 text-gray-900">À propos de notre appartement</h2>
+        <h2 className="text-xl font-semibold mb-4 text-gray-900">
+          {apartmentInfo?.title || "À propos de notre appartement"}
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <p className="text-gray-700 mb-4">
-              Notre bel appartement est situé dans un emplacement privilégié, offrant confort et commodité pour votre séjour. Que vous visitiez pour affaires ou pour le plaisir, notre appartement offre toutes les commodités dont vous avez besoin.
-            </p>
+            <div className="text-gray-700 mb-4 whitespace-pre-line">
+              {apartmentInfo?.description || 
+                "Notre bel appartement est situé dans un emplacement privilégié, offrant confort et commodité pour votre séjour. Que vous visitiez pour affaires ou pour le plaisir, notre appartement offre toutes les commodités dont vous avez besoin."}
+            </div>
             <p className="text-gray-700 mb-4">
               Veuillez noter les règles de réservation suivantes :
             </p>
-            <ul className="list-disc pl-5 text-gray-700 space-y-2">
-              <li>Entre juillet et septembre, la durée minimum de séjour est de 7 jours</li>
-              <li>Il ne peut pas y avoir de jours vides entre deux réservations</li>
-              <li>Certaines dates peuvent être bloquées pour maintenance ou autres raisons</li>
-            </ul>
+            <div className="text-gray-700 space-y-2 whitespace-pre-line pl-5">
+              {apartmentInfo?.rules ? (
+                <div dangerouslySetInnerHTML={{ 
+                  __html: apartmentInfo.rules
+                    .split('\n')
+                    .map(line => line.trim().startsWith('-') ? 
+                      `<li>${line.substring(1).trim()}</li>` : 
+                      line)
+                    .join('\n')
+                    .replace(/^(?!<li>)(.+)$/gm, '$1<br/>')
+                }} />
+              ) : (
+                <ul className="list-disc">
+                  <li>Entre juillet et septembre, la durée minimum de séjour est de 7 jours</li>
+                  <li>Il ne peut pas y avoir de jours vides entre deux réservations</li>
+                  <li>Certaines dates peuvent être bloquées pour maintenance ou autres raisons</li>
+                </ul>
+              )}
+            </div>
           </div>
           <div>
             <h3 className="text-lg font-medium mb-2 text-gray-900">Équipements</h3>
             <ul className="list-disc pl-5 text-gray-700 space-y-2">
-              <li>Cuisine entièrement équipée</li>
-              <li>WiFi haut débit</li>
-              <li>Climatisation</li>
-              <li>Machine à laver</li>
-              <li>TV avec services de streaming</li>
-              <li>Lits confortables</li>
-              <li>Draps et serviettes propres</li>
-              <li>Assistance 24h/24 et 7j/7</li>
+              {apartmentInfo?.amenities ? 
+                apartmentInfo.amenities.split('\n').map((amenity, index) => (
+                  <li key={index}>{amenity.trim()}</li>
+                )) : (
+                <>
+                  <li>Cuisine entièrement équipée</li>
+                  <li>WiFi haut débit</li>
+                  <li>Climatisation</li>
+                  <li>Machine à laver</li>
+                  <li>TV avec services de streaming</li>
+                  <li>Lits confortables</li>
+                  <li>Draps et serviettes propres</li>
+                  <li>Assistance 24h/24 et 7j/7</li>
+                </>
+              )}
             </ul>
           </div>
         </div>

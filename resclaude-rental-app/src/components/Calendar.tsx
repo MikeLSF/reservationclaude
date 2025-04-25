@@ -5,6 +5,7 @@ import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterv
 import { fr } from "date-fns/locale";
 import { Button } from "./ui/Button";
 import { cn } from "@/lib/utils";
+import { isHighSeason } from "@/lib/booking-rules";
 
 interface CalendarProps {
   availableDates: Date[];
@@ -96,19 +97,31 @@ export function Calendar({
   }, [currentMonth]);
 
   const nextMonth = () => {
+    console.log("Next month button clicked");
     const newMonth = addMonths(currentMonth, 1);
-    setCurrentMonth(newMonth);
+    
+    // Call onMonthChange first to fetch new data
     if (onMonthChange) {
+      console.log("Calling onMonthChange with:", newMonth);
       onMonthChange(newMonth);
     }
+    
+    // Then update the local state
+    setCurrentMonth(newMonth);
   };
 
   const prevMonth = () => {
+    console.log("Previous month button clicked");
     const newMonth = subMonths(currentMonth, 1);
-    setCurrentMonth(newMonth);
+    
+    // Call onMonthChange first to fetch new data
     if (onMonthChange) {
+      console.log("Calling onMonthChange with:", newMonth);
       onMonthChange(newMonth);
     }
+    
+    // Then update the local state
+    setCurrentMonth(newMonth);
   };
 
   const isDateReserved = (date: Date) => {
@@ -234,6 +247,7 @@ export function Calendar({
           const isBlocked = isDateBlocked(day);
           const isAvailable = isDateAvailable(day);
           const isSelected = isDateSelected(day);
+          const isInHighSeason = isHighSeason(day);
 
           return (
             <div
@@ -246,6 +260,7 @@ export function Calendar({
                 isBlocked && "bg-red-100 text-red-800",
                 isAvailable && "bg-green-100 text-green-800",
                 isSelected && "bg-blue-500 text-white",
+                isInHighSeason && !isReserved && !isBlocked && !isSelected && "border border-yellow-400",
                 (isReserved || isBlocked) && "cursor-not-allowed"
               )}
               onClick={() => {
@@ -259,7 +274,11 @@ export function Calendar({
                   : isBlocked
                   ? "Bloqué"
                   : isAvailable
-                  ? "Disponible"
+                  ? isInHighSeason
+                    ? "Disponible (Haute saison)"
+                    : "Disponible"
+                  : isInHighSeason
+                  ? "Haute saison"
                   : ""
               }
             >
@@ -285,6 +304,10 @@ export function Calendar({
         <div className="flex items-center">
           <div className="w-4 h-4 bg-blue-500 rounded-full mr-2"></div>
           <span className="text-sm text-gray-600">Sélectionné</span>
+        </div>
+        <div className="flex items-center">
+          <div className="w-4 h-4 border border-yellow-400 rounded-full mr-2"></div>
+          <span className="text-sm text-gray-600">Haute saison</span>
         </div>
       </div>
     </div>

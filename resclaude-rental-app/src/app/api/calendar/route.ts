@@ -4,11 +4,15 @@ import { getAvailableDates } from "@/lib/reservations";
 
 export async function GET(req: NextRequest) {
   try {
+    console.log("Calendar API called with URL:", req.url);
     const { searchParams } = new URL(req.url);
     const yearParam = searchParams.get("year");
     const monthParam = searchParams.get("month");
     
+    console.log("Year param:", yearParam, "Month param:", monthParam);
+    
     if (!yearParam || !monthParam) {
+      console.error("Missing year or month parameters");
       return NextResponse.json(
         { error: "Year and month parameters are required" },
         { status: 400 }
@@ -18,7 +22,10 @@ export async function GET(req: NextRequest) {
     const year = parseInt(yearParam);
     const month = parseInt(monthParam) - 1; // JavaScript months are 0-indexed
     
+    console.log("Parsed year:", year, "Parsed month (0-indexed):", month);
+    
     if (isNaN(year) || isNaN(month) || month < 0 || month > 11) {
+      console.error("Invalid year or month values");
       return NextResponse.json(
         { error: "Invalid year or month" },
         { status: 400 }

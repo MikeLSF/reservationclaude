@@ -52,9 +52,36 @@ export default function CalendarPage() {
   const [guestPhone, setGuestPhone] = useState("");
   const [numberOfPeople, setNumberOfPeople] = useState("");
 
+  // Fetch calendar data on initial load
   useEffect(() => {
-    fetchCalendarData(currentViewMonth);
-  }, [currentViewMonth]);
+    // Check if there's a date parameter in the URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const dateParam = urlParams.get('date');
+    
+    if (dateParam) {
+      try {
+        // Parse the date from the URL
+        const date = new Date(dateParam);
+        console.log("Date from URL:", date);
+        
+        // Set the start date
+        setStartDate(date);
+        
+        // Set the end date to the next day by default
+        const nextDay = new Date(date);
+        nextDay.setDate(nextDay.getDate() + 1);
+        setEndDate(nextDay);
+        
+        // Fetch calendar data for the month containing this date
+        fetchCalendarData(date);
+      } catch (error) {
+        console.error("Error parsing date from URL:", error);
+        fetchCalendarData(new Date());
+      }
+    } else {
+      fetchCalendarData(new Date());
+    }
+  }, []);
 
   const fetchCalendarData = async (date: Date) => {
     try {
@@ -62,18 +89,23 @@ export default function CalendarPage() {
       const year = date.getFullYear();
       const month = date.getMonth() + 1; // JavaScript months are 0-indexed
 
+      console.log(`Fetching calendar data for year: ${year}, month: ${month}`);
       const response = await fetch(`/api/calendar?year=${year}&month=${month}`);
       if (!response.ok) {
         throw new Error("Failed to fetch calendar data");
       }
 
       const data = await response.json();
+      console.log("Received calendar data:", data);
       
       setCalendarData({
         availableDates: data.availableDates.map((date: string) => new Date(date)),
         reservations: data.reservations,
         blockedDates: data.blockedDates,
       });
+      
+      // Update current view month after data is loaded
+      setCurrentViewMonth(date);
     } catch (error) {
       console.error("Error fetching calendar data:", error);
       setError("Failed to load calendar data. Please try again later.");
@@ -83,7 +115,9 @@ export default function CalendarPage() {
   };
 
   const handleMonthChange = (date: Date) => {
-    setCurrentViewMonth(date);
+    console.log("Month changed in admin calendar page:", date);
+    // Directly fetch data for the new month instead of just updating state
+    fetchCalendarData(date);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -240,7 +274,29 @@ export default function CalendarPage() {
               availableDates={calendarData.availableDates}
               reservations={calendarData.reservations}
               blockedDates={calendarData.blockedDates}
-              onDateClick={() => {}}
+              onDateClick={(date) => {
+                console.log("Date clicked in calendar:", date);
+                // If startDate is not set, set it
+                if (!startDate) {
+                  setStartDate(date);
+                } 
+                // If startDate is set but endDate is not, set endDate
+                else if (!endDate) {
+                  // Make sure endDate is after startDate
+                  if (date >= startDate) {
+                    setEndDate(date);
+                  } else {
+                    // If user clicked a date before startDate, swap them
+                    setEndDate(startDate);
+                    setStartDate(date);
+                  }
+                } 
+                // If both are set, reset and set startDate
+                else {
+                  setStartDate(date);
+                  setEndDate(null);
+                }
+              }}
               selectedStartDate={startDate}
               selectedEndDate={endDate}
               onMonthChange={handleMonthChange}

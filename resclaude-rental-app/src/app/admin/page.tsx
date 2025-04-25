@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { format } from "date-fns";
 import { useToast } from "@/components/ui/Toast";
 import { ReservationSummaryTable } from "@/components/ReservationSummaryTable";
+import { Calendar } from "@/components/Calendar";
 
 interface Reservation {
   id: string;
@@ -162,108 +163,147 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <div className="mb-6 flex space-x-4">
-        <Link href="/admin/blocked-dates">
-          <Button>Gérer les Dates Bloquées</Button>
-        </Link>
-        <Link href="/admin/calendar">
-          <Button>Calendrier Administrateur</Button>
-        </Link>
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h2 className="text-xl font-semibold mb-4">Calendrier</h2>
+          {isLoading ? (
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              <p className="mt-2 text-gray-600">Chargement du calendrier...</p>
+            </div>
+          ) : (
+            <Calendar
+              availableDates={[]}
+              reservations={reservations.map(res => ({
+                id: res.id,
+                startDate: new Date(res.startDate),
+                endDate: new Date(res.endDate)
+              }))}
+              blockedDates={[]}
+              onDateClick={(date) => {
+                console.log("Date clicked in admin calendar:", date);
+                // Navigate to the calendar page with the selected date
+                window.location.href = `/admin/calendar?date=${date.toISOString()}`;
+              }}
+              onMonthChange={(date) => {
+                console.log("Month changed in admin calendar:", date);
+                // Fetch new data for the month if needed
+              }}
+            />
+          )}
+        </div>
+        
+        <div>
+          <div className="mb-6 flex flex-wrap gap-4">
+            <Link href="/admin/blocked-dates">
+              <Button>Gérer les Dates Bloquées</Button>
+            </Link>
+            <Link href="/admin/calendar">
+              <Button>Calendrier Administrateur</Button>
+            </Link>
+            <Link href="/admin/rules">
+              <Button>Règles de Réservation</Button>
+            </Link>
+            <Link href="/admin/apartment-info">
+              <Button>Informations Appartement</Button>
+            </Link>
+          </div>
 
-      {isLoading ? (
-        <div className="text-center py-8">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          <p className="mt-2 text-gray-600">Chargement des réservations...</p>
-        </div>
-      ) : reservations.length === 0 ? (
-        <div className="text-center py-8 bg-gray-50 rounded-md">
-          <p className="text-gray-600">Aucune réservation {activeTab === "pending" ? "en attente" : activeTab === "approved" ? "approuvée" : "refusée"} trouvée.</p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Dates
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contact
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Demandé le
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {reservations.map((reservation) => (
-                <tr key={reservation.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {reservation.firstName} {reservation.lastName}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {reservation.numberOfPeople} personne(s)
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {reservation.email}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {reservation.phone}
-                    </div>
-                    <div className="text-xs text-gray-500 truncate max-w-xs">
-                      {reservation.address}, {reservation.locality}, {reservation.city}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-500">
-                      {formatDate(reservation.createdAt)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    {activeTab === "pending" && (
-                      <>
+          {isLoading ? (
+            <div className="text-center py-8">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+              <p className="mt-2 text-gray-600">Chargement des réservations...</p>
+            </div>
+          ) : reservations.length === 0 ? (
+            <div className="text-center py-8 bg-gray-50 rounded-md">
+              <p className="text-gray-600">Aucune réservation {activeTab === "pending" ? "en attente" : activeTab === "approved" ? "approuvée" : "refusée"} trouvée.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Client
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Dates
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Contact
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Demandé le
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {reservations.map((reservation) => (
+                    <tr key={reservation.id}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {reservation.firstName} {reservation.lastName}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {reservation.numberOfPeople} personne(s)
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {formatDate(reservation.startDate)} - {formatDate(reservation.endDate)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {reservation.email}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {reservation.phone}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate max-w-xs">
+                          {reservation.address}, {reservation.locality}, {reservation.city}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-500">
+                          {formatDate(reservation.createdAt)}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        {activeTab === "pending" && (
+                          <>
+                            <button
+                              onClick={() => handleStatusChange(reservation.id, "approved")}
+                              className="text-green-600 hover:text-green-900 mr-4"
+                            >
+                              Approuver
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(reservation.id, "rejected")}
+                              className="text-red-600 hover:text-red-900 mr-4"
+                            >
+                              Refuser
+                            </button>
+                          </>
+                        )}
                         <button
-                          onClick={() => handleStatusChange(reservation.id, "approved")}
-                          className="text-green-600 hover:text-green-900 mr-4"
+                          onClick={() => handleDelete(reservation.id)}
+                          className="text-gray-600 hover:text-gray-900"
                         >
-                          Approuver
+                          Supprimer
                         </button>
-                        <button
-                          onClick={() => handleStatusChange(reservation.id, "rejected")}
-                          className="text-red-600 hover:text-red-900 mr-4"
-                        >
-                          Refuser
-                        </button>
-                      </>
-                    )}
-                    <button
-                      onClick={() => handleDelete(reservation.id)}
-                      className="text-gray-600 hover:text-gray-900"
-                    >
-                      Supprimer
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <div className="mt-12 border-t border-gray-200 pt-8">
         <ReservationSummaryTable />

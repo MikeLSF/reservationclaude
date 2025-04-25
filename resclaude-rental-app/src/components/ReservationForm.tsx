@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import { Input } from "./ui/Input";
 import { Textarea } from "./ui/Textarea";
 import { Button } from "./ui/Button";
-import { differenceInDays, format } from "date-fns";
+import { format, differenceInDays } from "date-fns";
 import { fr } from "date-fns/locale";
+import { validateBooking, fetchActiveRules } from "@/lib/booking-rules";
 
 interface ReservationFormProps {
   onSubmit: (data: ReservationFormData) => void;
@@ -99,7 +100,12 @@ export function ReservationForm({ onSubmit, isLoading, selectedStartDate, select
   };
   */
 
-  const validateForm = (): boolean => {
+  // Initialize booking rules
+  useEffect(() => {
+    fetchActiveRules();
+  }, []);
+
+  const validateForm = async (): Promise<boolean> => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.startDate) {
@@ -113,15 +119,28 @@ export function ReservationForm({ onSubmit, isLoading, selectedStartDate, select
     if (formData.startDate && formData.endDate) {
       if (formData.startDate >= formData.endDate) {
         newErrors.endDate = "La date de départ doit être après la date d&apos;arrivée";
-      }
-
-      // Check minimum stay requirement (7 days in July-September)
-      const startMonth = formData.startDate.getMonth();
-      if (startMonth >= 6 && startMonth <= 8) {
-        // July (6) to September (8)
-        const diffDays = differenceInDays(formData.endDate, formData.startDate);
-        if (diffDays < 7) {
-          newErrors.endDate = "Le séjour minimum en juillet-septembre est de 7 jours";
+      } else {
+        // Validate against booking rules
+        try {
+          // Get existing reservations (in a real app, you would fetch these from the server)
+          const existingReservations: { id: string; startDate: Date; endDate: Date }[] = [];
+          
+          const validation = validateBooking(formData.startDate, formData.endDate, existingReservations);
+          
+          if (!validation.valid && validation.reason) {
+            newErrors.endDate = validation.reason;
+          }
+        } catch (error) {
+          console.error("Error validating booking rules:", error);
+          // Fall back to basic validation if booking rules validation fails
+          const startMonth = formData.startDate.getMonth();
+          if (startMonth >= 6 && startMonth <= 8) {
+            // July (6) to September (8)
+            const diffDays = differenceInDays(formData.endDate, formData.startDate);
+            if (diffDays < 7) {
+              newErrors.endDate = "Le séjour minimum en juillet-septembre est de 7 jours";
+            }
+          }
         }
       }
     }
@@ -170,9 +189,10 @@ export function ReservationForm({ onSubmit, isLoading, selectedStartDate, select
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateForm()) {
+    const isValid = await validateForm();
+    if (isValid) {
       onSubmit(formData);
     }
   };

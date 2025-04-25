@@ -142,66 +142,81 @@ export async function getAvailableDates(
   year: number,
   month: number
 ): Promise<Date[]> {
+  console.log(`Getting available dates for year: ${year}, month: ${month}`);
   const startDate = new Date(year, month, 1);
   const endDate = new Date(year, month + 1, 0);
   
-  // Get all approved reservations for the month
-  const reservations = await db.reservation.findMany({
-    where: {
-      status: "approved",
-      OR: [
-        {
-          startDate: { lte: endDate },
-          endDate: { gte: startDate },
-        },
-      ],
-    },
-    select: {
-      id: true,
-      startDate: true,
-      endDate: true,
-      status: true,
-    },
-  });
+  console.log(`Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
   
-  // Get all blocked dates for the month
-  const blockedDates = await db.blockedDate.findMany({
-    where: {
-      OR: [
-        {
-          startDate: { lte: endDate },
-          endDate: { gte: startDate },
-        },
-      ],
-    },
-  });
-  
-  // Create an array of all dates in the month
-  const dates: Date[] = [];
-  const currentDate = new Date(startDate);
-  while (currentDate <= endDate) {
-    dates.push(new Date(currentDate));
-    currentDate.setDate(currentDate.getDate() + 1);
+  try {
+    // Get all approved reservations for the month
+    const reservations = await db.reservation.findMany({
+      where: {
+        status: "approved",
+        OR: [
+          {
+            startDate: { lte: endDate },
+            endDate: { gte: startDate },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        status: true,
+      },
+    });
+    
+    console.log(`Found ${reservations.length} reservations for the month`);
+    
+    // Get all blocked dates for the month
+    const blockedDates = await db.blockedDate.findMany({
+      where: {
+        OR: [
+          {
+            startDate: { lte: endDate },
+            endDate: { gte: startDate },
+          },
+        ],
+      },
+    });
+    
+    console.log(`Found ${blockedDates.length} blocked date ranges for the month`);
+    
+    // Create an array of all dates in the month
+    const dates: Date[] = [];
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      dates.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    console.log(`Created array of ${dates.length} dates for the month`);
+    
+    // Filter out dates that are not available
+    const availableDates = dates.filter((date) => {
+      // Check if date is within any approved reservation
+      const isReserved = reservations.some((reservation) => {
+        return (
+          (date >= reservation.startDate && date <= reservation.endDate)
+        );
+      });
+      
+      // Check if date is within any blocked date
+      const isBlocked = blockedDates.some((blockedDate) => {
+        return (
+          (date >= blockedDate.startDate && date <= blockedDate.endDate)
+        );
+      });
+      
+      return !isReserved && !isBlocked;
+    });
+    
+    console.log(`Found ${availableDates.length} available dates for the month`);
+    return availableDates;
+  } catch (error) {
+    console.error("Error getting available dates:", error);
+    return [];
   }
-  
-  // Filter out dates that are not available
-  const availableDates = dates.filter((date) => {
-    // Check if date is within any approved reservation
-    const isReserved = reservations.some((reservation) => {
-      return (
-        (date >= reservation.startDate && date <= reservation.endDate)
-      );
-    });
-    
-    // Check if date is within any blocked date
-    const isBlocked = blockedDates.some((blockedDate) => {
-      return (
-        (date >= blockedDate.startDate && date <= blockedDate.endDate)
-      );
-    });
-    
-    return !isReserved && !isBlocked;
-  });
-  
-  return availableDates;
 }
