@@ -290,7 +290,7 @@ export default function BookingRulesPage() {
       
       // Refresh the active rules cache on the server
       try {
-        const refreshResponse = await fetch("/api/admin/rules/refresh", {
+        const refreshResponse = await fetch("/api/booking-rules/refresh", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -309,10 +309,10 @@ export default function BookingRulesPage() {
       setSuccessMessage("Règles de réservation mises à jour avec succès");
       showToast("Règles de réservation mises à jour avec succès", "success");
       
-      // Instead of reloading the entire page, we'll redirect to the admin page with a refresh parameter
+      // Force a complete page reload to refresh all JavaScript modules
       setTimeout(() => {
-        window.location.href = "/admin?refresh=true";
-      }, 1500); // Wait 1.5 seconds to show the success message before redirecting
+        window.location.reload();
+      }, 1500); // Wait 1.5 seconds to show the success message before reloading
     } catch (error: unknown) {
       console.error("Error saving booking rules:", error);
       const errorMessage = error instanceof Error 

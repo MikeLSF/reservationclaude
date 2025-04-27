@@ -5,7 +5,7 @@ import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterv
 import { fr } from "date-fns/locale";
 import { Button } from "./ui/Button";
 import { cn } from "@/lib/utils";
-import { isHighSeason } from "@/lib/booking-rules";
+import { useBookingRules, isHighSeason } from "./BookingRulesProvider";
 
 interface CalendarProps {
   availableDates: Date[];
@@ -35,6 +35,7 @@ export function Calendar({
   selectedStartDate,
   selectedEndDate,
 }: CalendarProps) {
+  const { rules } = useBookingRules();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [calendarDays, setCalendarDays] = useState<Date[]>([]);
 
@@ -269,7 +270,7 @@ export function Calendar({
           const isBlocked = isDateBlocked(day);
           const isAvailable = isDateAvailable(day);
           const isSelected = isDateSelected(day);
-          const isInHighSeason = isHighSeason(day);
+          const isInHighSeason = isHighSeason(day, rules);
 
           return (
             <div

@@ -6,7 +6,7 @@ import { Textarea } from "./ui/Textarea";
 import { Button } from "./ui/Button";
 import { format, differenceInDays } from "date-fns";
 import { fr } from "date-fns/locale";
-import { validateBooking, fetchActiveRules } from "@/lib/booking-rules";
+import { useBookingRules } from "./BookingRulesProvider";
 
 interface ReservationFormProps {
   onSubmit: (data: ReservationFormData) => void;
@@ -30,7 +30,207 @@ export interface ReservationFormData {
   message: string;
 }
 
+// Define the BookingRule type
+interface BookingRule {
+  id: string;
+  name: string;
+  isActive: boolean;
+  isHighSeason: boolean;
+  highSeasonStartMonth: number | null;
+  highSeasonEndMonth: number | null;
+  minimumStayDays: number;
+  enforceGapBetweenBookings: boolean;
+  minimumGapDays: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Helper function to check if a date is in high season based on rules
+function isDateInHighSeason(date: Date, rules: BookingRule[]): boolean {
+  // Get the month (1-12)
+  const month = date.getMonth() + 1;
+  
+  // Find active high season rules
+  const highSeasonRules = rules.filter(
+    (rule) => 
+      rule.isActive && 
+      rule.isHighSeason && 
+      rule.highSeasonStartMonth !== null && 
+      rule.highSeasonEndMonth !== null
+  );
+  
+  // Check if the date falls within any high season period
+  return highSeasonRules.some((rule) => {
+    const startMonth = rule.highSeasonStartMonth as number;
+    const endMonth = rule.highSeasonEndMonth as number;
+    
+    // Handle cases where high season spans across years (e.g., November to February)
+    if (startMonth > endMonth) {
+      return month >= startMonth || month <= endMonth;
+    } else {
+      return month >= startMonth && month <= endMonth;
+    }
+  });
+}
+
+// Helper function to check if a date range overlaps with high season
+function dateRangeOverlapsHighSeason(startDate: Date, endDate: Date, rules: BookingRule[]): boolean {
+  // Check if start date is in high season
+  if (isDateInHighSeason(startDate, rules)) {
+    return true;
+  }
+  
+  // Check if end date is in high season
+  if (isDateInHighSeason(endDate, rules)) {
+    return true;
+  }
+  
+  // Check if the range spans across high season
+  // Create an array of all months in the range
+  const months = new Set<number>();
+  const currentDate = new Date(startDate);
+  
+  while (currentDate <= endDate) {
+    months.add(currentDate.getMonth() + 1); // Add month (1-12)
+    currentDate.setDate(currentDate.getDate() + 15); // Jump by 15 days to catch all months
+  }
+  
+  // Check if any month in the range is in high season
+  return Array.from(months).some(month => {
+    const testDate = new Date(startDate.getFullYear(), month - 1, 15); // Middle of the month
+    return isDateInHighSeason(testDate, rules);
+  });
+}
+
+// Function to validate booking against rules
+function validateBookingWithRules(
+  startDate: Date, 
+  endDate: Date, 
+  existingReservations: { id: string; startDate: Date; endDate: Date }[],
+  rules: BookingRule[]
+): { valid: boolean; reason?: string } {
+  // Calculate the duration of stay in days
+  const durationDays = Math.floor(
+    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+  ) + 1; // +1 because both start and end dates are inclusive
+  
+  // Check if the reservation overlaps with high season
+  const overlapsHighSeason = dateRangeOverlapsHighSeason(startDate, endDate, rules);
+  
+  // Get the appropriate minimum stay requirement based on whether the reservation overlaps with high season
+  const requiredMinimumStay = overlapsHighSeason ? 
+    // If in high season, get the high season minimum stay
+    Math.max(...rules
+      .filter(rule => rule.isActive && rule.isHighSeason)
+      .map(rule => rule.minimumStayDays)) :
+    // Otherwise, get the low season minimum stay
+    Math.max(...rules
+      .filter(rule => rule.isActive && !rule.isHighSeason)
+      .map(rule => rule.minimumStayDays));
+  
+  // If no rules found, default to 1 day
+  const finalMinimumStay = requiredMinimumStay || 1;
+  
+  // Check minimum stay requirement
+  if (durationDays < finalMinimumStay) {
+    return {
+      valid: false,
+      reason: `La durée minimum de séjour est de ${finalMinimumStay} jour${
+        finalMinimumStay > 1 ? 's' : ''
+      } pour cette période.`
+    };
+  }
+  
+  // Check gap between bookings for high season
+  if (overlapsHighSeason) {
+    // Find applicable high season rules with gap enforcement
+    const gapRules = rules.filter(
+      (rule) => 
+        rule.isActive && 
+        rule.isHighSeason && 
+        rule.enforceGapBetweenBookings && 
+        rule.minimumGapDays !== null
+    );
+    
+    // If no gap rules, allow the booking
+    if (gapRules.length > 0) {
+      // Get the maximum required gap
+      const requiredGap = Math.max(...gapRules.map((rule) => rule.minimumGapDays as number));
+      
+      // First, check if there are any existing reservations
+      if (existingReservations.length > 0) {
+        // Sort reservations by start date
+        const sortedReservations = [...existingReservations].sort((a, b) => 
+          a.startDate.getTime() - b.startDate.getTime()
+        );
+        
+        // Find the closest reservation before the requested dates
+        const previousReservation = sortedReservations
+          .filter(res => res.endDate < startDate)
+          .sort((a, b) => b.endDate.getTime() - a.endDate.getTime())[0];
+        
+        // Find the closest reservation after the requested dates
+        const nextReservation = sortedReservations
+          .filter(res => res.startDate > endDate)
+          .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())[0];
+        
+        // Check if previous reservation's end date is in high season
+        const isPrevReservationEndInHighSeason = previousReservation ? 
+          isDateInHighSeason(previousReservation.endDate, rules) || 
+          dateRangeOverlapsHighSeason(previousReservation.startDate, previousReservation.endDate, rules) : 
+          false;
+        
+        // Check if next reservation's start date is in high season
+        const isNextReservationStartInHighSeason = nextReservation ? 
+          isDateInHighSeason(nextReservation.startDate, rules) || 
+          dateRangeOverlapsHighSeason(nextReservation.startDate, nextReservation.endDate, rules) : 
+          false;
+        
+        // Normalize dates to remove time part (set to 00:00:00)
+        const normalizeDate = (date: Date): Date => {
+          const normalized = new Date(date);
+          normalized.setHours(0, 0, 0, 0);
+          return normalized;
+        };
+        
+        const normalizedStartDate = normalizeDate(startDate);
+        const normalizedEndDate = normalizeDate(endDate);
+        
+        // Calculate days between reservations
+        const daysBefore = previousReservation ? 
+          Math.max(0, Math.floor((normalizedStartDate.getTime() - normalizeDate(previousReservation.endDate).getTime()) / (1000 * 60 * 60 * 24) - 1)) : 
+          Number.MAX_SAFE_INTEGER;
+        
+        const daysAfter = nextReservation ? 
+          Math.max(0, Math.floor((normalizeDate(nextReservation.startDate).getTime() - normalizedEndDate.getTime()) / (1000 * 60 * 60 * 24) - 1)) : 
+          Number.MAX_SAFE_INTEGER;
+        
+        // Check if there's a reservation too close before and either this reservation or the previous one is in high season
+        // Allow reservations that start immediately after an existing reservation (daysBefore === 0)
+        if (previousReservation && daysBefore > 0 && daysBefore < requiredGap && (overlapsHighSeason || isPrevReservationEndInHighSeason)) {
+          return { 
+            valid: false, 
+            reason: `Il doit y avoir soit 0 jour (réservation consécutive), soit au moins ${requiredGap} jours entre les réservations en haute saison. (${daysBefore} jours avant)` 
+          };
+        }
+        
+        // Check if there's a reservation too close after and either this reservation or the next one is in high season
+        // Allow reservations that end immediately before an existing reservation (daysAfter === 0)
+        if (nextReservation && daysAfter > 0 && daysAfter < requiredGap && (overlapsHighSeason || isNextReservationStartInHighSeason)) {
+          return { 
+            valid: false, 
+            reason: `Il doit y avoir soit 0 jour (réservation consécutive), soit au moins ${requiredGap} jours entre les réservations en haute saison. (${daysAfter} jours après)` 
+          };
+        }
+      }
+    }
+  }
+  
+  return { valid: true };
+}
+
 export function ReservationForm({ onSubmit, isLoading, selectedStartDate, selectedEndDate, existingReservations = [] }: ReservationFormProps) {
+  const { rules, refreshRules } = useBookingRules();
   const [formData, setFormData] = useState<ReservationFormData>({
     startDate: null,
     endDate: null,
@@ -101,9 +301,11 @@ export function ReservationForm({ onSubmit, isLoading, selectedStartDate, select
   };
   */
 
-  // Initialize booking rules
+  // Refresh booking rules when component mounts
   useEffect(() => {
-    fetchActiveRules();
+    refreshRules();
+    // refreshRules is now stable thanks to useCallback in the provider
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const validateForm = async (): Promise<boolean> => {
@@ -196,7 +398,8 @@ export function ReservationForm({ onSubmit, isLoading, selectedStartDate, select
           
           console.log("Is reservation consecutive?", isConsecutive);
           
-          const validation = validateBooking(formData.startDate, formData.endDate, formattedReservations);
+          // Implement booking validation using rules from context
+          const validation = validateBookingWithRules(formData.startDate, formData.endDate, formattedReservations, rules);
           
           if (!validation.valid && validation.reason) {
             newErrors.endDate = validation.reason;
